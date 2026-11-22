@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ระบบติดตามผลการเรียนส่วนตัว | สทก. ม.ปลาย &amp; Pre-degree ม.รามคำแหง</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./config.js"></script>
+</head>
+<body>
+
+  <!-- ================= PRIVATE LOGIN GATE (Supabase Mode) ================= -->
+  <section id="login-gate" class="login-gate hidden">
+    <div class="login-card">
+      <div class="login-badge">🔒 พื้นที่ส่วนตัวเฉพาะเจ้าของบัญชี</div>
+      <h1>ระบบติดตามผลการเรียนส่วนตัว</h1>
+      <p>สทก.ทางไกล ม.ปลาย &bull; Pre-degree ม.รามคำแหง (เอกญี่ปุ่น โทจิตวิทยา)</p>
+
+      <div id="login-error" class="login-error hidden"></div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label for="login-email">อีเมล</label>
+          <input id="login-email" type="email" class="input" placeholder="your@email.com" required autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label for="login-password">รหัสผ่าน</label>
+          <input id="login-password" type="password" class="input" placeholder="••••••••" required autocomplete="current-password" />
+        </div>
+        <button id="login-submit" type="submit" class="btn btn-primary btn-block">เข้าสู่ระบบ</button>
+      </form>
+
+      <p style="margin: 18px 0 0; font-size: 12px; text-align: center; color: var(--text-light);">
+        ระบบปิดรับสมัครสมาชิกใหม่ ข้อมูลทั้งหมดเข้ารหัสสิทธิ์ด้วย Supabase RLS
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= MAIN APP SHELL ================= -->
+  <div id="app-shell" class="hidden">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <div class="brand-icon">学</div>
+          <div>
+            <h1 class="brand-title">ระบบติดตามผลการเรียนส่วนตัว</h1>
+            <div class="brand-sub">สทก.ทางไกล ม.ปลาย &bull; Pre-degree ม.รามฯ เอกญี่ปุ่น โทจิตวิทยา &bull; เริ่ม 2/68</div>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <button id="sync-pill" type="button" class="sync-pill local" title="คลิกเพื่อดูสถานะการเชื่อมต่อและวิธีตั้งค่า Supabase">
+            <span class="sync-dot"></span>
+            <span id="sync-label">โหมดเครื่องตัวเอง (Local)</span>
+          </button>
+          <button id="btn-backup" type="button" class="btn btn-secondary btn-sm">สำรอง / นำเข้า</button>
+          <button id="btn-print" type="button" class="btn btn-secondary btn-sm">พิมพ์ใบติดตาม</button>
+          <button id="btn-logout" type="button" class="btn btn-ghost btn-sm hidden">ออกจากระบบ</button>
+        </div>
+      </div>
+    </header>
+
+    <nav class="nav-tabs-bar">
+      <div class="nav-tabs-inner" role="tablist">
+        <button type="button" class="nav-tab active" data-tab="overview">
+          ภาพรวม
+        </button>
+        <button type="button" class="nav-tab" data-tab="dei">
+          สทก.ทางไกล ม.ปลาย
+          <span id="chip-dei" class="tab-chip tabular">0/76</span>
+        </button>
+        <button type="button" class="nav-tab" data-tab="ru">
+          Pre-degree ม.รามฯ (เอกญี่ปุ่น)
+          <span id="chip-ru" class="tab-chip tabular">0/132</span>
+        </button>
+        <button type="button" class="nav-tab" data-tab="terms">
+          ผลการเรียนแยกตามเทอม
+          <span id="chip-terms" class="tab-chip tabular">2/68+</span>
+        </button>
+      </div>
+    </nav>
+
+    <main class="container">
+      <!-- Local mode notice banner -->
+      <div id="local-banner" class="local-banner hidden">
+        <div>
+          <strong>กำลังใช้งานโหมดเครื่องตัวเอง (Local Mode)</strong> — ข้อมูลบันทึกในเบราว์เซอร์นี้ทันที
+          หากต้องการล็อกอินใช้คนเดียวและซิงค์ข้ามเครื่องบน GitHub Pages ให้ใส่ค่า Supabase ในไฟล์ <code>config.js</code>
+        </div>
+        <button id="btn-open-supabase-guide" type="button" class="btn btn-secondary btn-sm">ดูวิธีตั้งค่า Supabase</button>
+      </div>
+
+      <!-- Cloud first-time import banner -->
+      <div id="migrate-banner" class="local-banner hidden" style="background: var(--ru-soft); border-color: var(--ru-border);">
+        <div>
+          <strong style="color: var(--ru-primary);">พบข้อมูลเดิมที่เคยบันทึกไว้ในเครื่องนี้!</strong>
+          ต้องการนำข้อมูลเดิมขึ้นไปเก็บในบัญชี Supabase ของคุณเลยไหมครับ?
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-migrate-yes" type="button" class="btn btn-primary btn-sm">นำเข้าขึ้น Supabase</button>
+          <button id="btn-migrate-no" type="button" class="btn btn-secondary btn-sm">เริ่มใหม่</button>
+        </div>
+      </div>
+
+      <!-- Dynamic Tab Views -->
+      <section id="view-overview" class="tab-view"></section>
+      <section id="view-dei" class="tab-view hidden"></section>
+      <section id="view-ru" class="tab-view hidden"></section>
+      <section id="view-terms" class="tab-view hidden"></section>
+    </main>
+  </div>
+
+  <!-- ================= MODAL CONTAINER ================= -->
+  <div id="modal-backdrop" class="modal-backdrop hidden">
+    <div id="modal-box" class="modal" role="dialog" aria-modal="true"></div>
+  </div>
+
+  <!-- ================= TOAST ================= -->
+  <div id="toast" class="toast"></div>
+
+  <script src="./data/curriculum.js"></script>
+  <script src="./js/storage.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>
