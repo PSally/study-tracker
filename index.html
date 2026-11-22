@@ -2,11 +2,16 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#fff5f7" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="ติดตามผลการเรียน" />
   <title>ระบบติดตามผลการเรียนส่วนตัว | สทก. ม.ปลาย &amp; Pre-degree ม.รามคำแหง</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Mali:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
@@ -45,7 +50,35 @@
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand">
-          <div class="brand-icon">学</div>
+          <div class="brand-icon" aria-label="น้องหมีคาวาอี้">
+            <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+              <!-- Bear Ears -->
+              <circle cx="17" cy="18" r="10" fill="#b87650" stroke="#4d2b1f" stroke-width="3"/>
+              <circle cx="17" cy="18" r="5" fill="#ffb3cf"/>
+              <circle cx="47" cy="18" r="10" fill="#b87650" stroke="#4d2b1f" stroke-width="3"/>
+              <circle cx="47" cy="18" r="5" fill="#ffb3cf"/>
+              <!-- Pink Anime Ribbon on Right Ear -->
+              <ellipse cx="44" cy="11" rx="5" ry="3.5" transform="rotate(-20 44 11)" fill="#ff6fa5" stroke="#4d2b1f" stroke-width="2"/>
+              <ellipse cx="52" cy="14" rx="5" ry="3.5" transform="rotate(25 52 14)" fill="#ff6fa5" stroke="#4d2b1f" stroke-width="2"/>
+              <circle cx="48" cy="13" r="2.6" fill="#ffd9e8" stroke="#4d2b1f" stroke-width="2"/>
+              <!-- Bear Head -->
+              <ellipse cx="32" cy="36" rx="22" ry="19" fill="#c7855e" stroke="#4d2b1f" stroke-width="3"/>
+              <!-- Anime Shiny Eyes -->
+              <circle cx="23" cy="34" r="3.6" fill="#4d2b1f"/>
+              <circle cx="24.3" cy="32.7" r="1.3" fill="#ffffff"/>
+              <circle cx="21.9" cy="35.1" r="0.7" fill="#ffffff"/>
+              <circle cx="41" cy="34" r="3.6" fill="#4d2b1f"/>
+              <circle cx="42.3" cy="32.7" r="1.3" fill="#ffffff"/>
+              <circle cx="39.9" cy="35.1" r="0.7" fill="#ffffff"/>
+              <!-- Rosy Anime Cheeks -->
+              <ellipse cx="17" cy="40" rx="4.2" ry="2.4" fill="#ff8db8" opacity="0.8"/>
+              <ellipse cx="47" cy="40" rx="4.2" ry="2.4" fill="#ff8db8" opacity="0.8"/>
+              <!-- Cream Snout & Cute Smile -->
+              <ellipse cx="32" cy="41.5" rx="8.5" ry="6.2" fill="#fff3ea" stroke="#4d2b1f" stroke-width="2"/>
+              <ellipse cx="32" cy="39" rx="2.6" ry="1.8" fill="#4d2b1f"/>
+              <path d="M28.5 42.5 Q32 45.5 35.5 42.5" fill="none" stroke="#4d2b1f" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
           <div>
             <h1 class="brand-title">ระบบติดตามผลการเรียนส่วนตัว</h1>
             <div class="brand-sub">สทก.ทางไกล ม.ปลาย &bull; Pre-degree ม.รามฯ เอกญี่ปุ่น โทจิตวิทยา &bull; เริ่ม 2/68</div>
@@ -81,6 +114,10 @@
           ผลการเรียนแยกตามเทอม
           <span id="chip-terms" class="tab-chip tabular">2/68+</span>
         </button>
+        <button type="button" class="nav-tab" data-tab="calendar">
+          🗓️ ปฏิทิน &amp; สอบซ่อม
+          <span id="chip-cal" class="tab-chip tabular">0</span>
+        </button>
       </div>
     </nav>
 
@@ -111,7 +148,32 @@
       <section id="view-dei" class="tab-view hidden"></section>
       <section id="view-ru" class="tab-view hidden"></section>
       <section id="view-terms" class="tab-view hidden"></section>
+      <section id="view-calendar" class="tab-view hidden"></section>
     </main>
+
+    <!-- Mobile Bottom Tab Bar (Thumb-friendly navigation on phones) -->
+    <nav class="mobile-bottom-nav no-print" role="tablist" aria-label="เมนูหลักมือถือ">
+      <button type="button" class="mobile-nav-item active" data-tab="overview">
+        <span class="mobile-nav-icon">📊</span>
+        <span>ภาพรวม</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-tab="dei">
+        <span class="mobile-nav-icon">📗</span>
+        <span>สทก. ม.ปลาย</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-tab="ru">
+        <span class="mobile-nav-icon">🎌</span>
+        <span>ม.รามฯ</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-tab="terms">
+        <span class="mobile-nav-icon">🗓️</span>
+        <span>รายเทอม</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-tab="calendar">
+        <span class="mobile-nav-icon">🌸</span>
+        <span>ปฏิทิน</span>
+      </button>
+    </nav>
   </div>
 
   <!-- ================= MODAL CONTAINER ================= -->
@@ -123,6 +185,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="./data/curriculum.js"></script>
+  <script src="./data/makeup-schedule.js"></script>
   <script src="./js/storage.js"></script>
   <script src="./js/app.js"></script>
 </body>

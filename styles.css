@@ -1157,6 +1157,11 @@ table.sheet tbody tr.row-failed {
   transform: translateY(0);
 }
 
+/* ================= MOBILE BOTTOM NAV ================= */
+.mobile-bottom-nav {
+  display: none;
+}
+
 /* ================= RESPONSIVE ================= */
 @media (max-width: 900px) {
   .grid-2, .kpc-grid, .plan-grid {
@@ -1173,15 +1178,284 @@ table.sheet tbody tr.row-failed {
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
+  .nav-tabs-bar {
+    display: none;
+  }
+
+  .mobile-bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border);
+    padding: 6px 6px calc(8px + env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 18px rgba(15, 23, 42, 0.06);
+  }
+
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 4px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 10px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-nav-icon {
+    font-size: 18px;
+    line-height: 1.1;
+  }
+
+  .mobile-nav-item.active {
+    color: var(--ru-primary);
+    background: var(--ru-soft);
+  }
+
+  .mobile-nav-item[data-tab="dei"].active {
+    color: var(--dei-primary);
+    background: var(--dei-soft);
+  }
+
+  .topbar-inner {
+    padding: 10px 14px;
+    gap: 8px;
+  }
+
+  .brand-icon {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+  }
+
+  .brand-title {
+    font-size: 14.5px;
+  }
+
+  .brand-sub {
+    display: none;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  #btn-print {
+    display: none;
+  }
+
+  .container {
+    padding: 14px 12px calc(92px + env(safe-area-inset-bottom));
+  }
+
+  .card {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .section-head {
+    padding: 13px 14px;
+  }
+
+  .section-subhead {
+    padding: 9px 14px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .stat-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .stat-box {
+    padding: 10px 8px;
+  }
+
+  .stat-value {
+    font-size: 17px;
+  }
+
+  .search-box {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .filter-pills {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+
+  .filter-pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pill {
+    flex: 0 0 auto;
+    padding: 7px 13px;
+  }
+
+  /* Prevent iOS Safari zoom on input focus & improve touch targets */
+  .input, .select, .cell-select, .cell-input {
+    font-size: 16px;
+    min-height: 40px;
+  }
+
+  .check-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+    border-radius: 9px;
+  }
+
+  /* ===== MOBILE CARD TRANSFORMATION FOR ALL CURRICULUM TABLES ===== */
+  .table-wrap {
+    overflow-x: visible;
+  }
+
+  table.sheet {
+    min-width: 0;
+    display: block;
+  }
+
+  table.sheet thead {
+    display: none;
+  }
+
+  table.sheet tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    background: var(--bg);
+  }
+
+  table.sheet tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    padding: 13px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  table.sheet tbody tr.row-passed {
+    background: #f5fdf7;
+    border-color: #bbf7d0;
+  }
+
+  table.sheet tbody tr.row-in_progress {
+    background: #f6f8ff;
+    border-color: var(--ru-border);
+  }
+
+  table.sheet tbody tr.row-failed {
+    background: #fff5f5;
+    border-color: #fecaca;
+  }
+
+  table.sheet td {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 0;
+    border: none;
+    min-width: 0;
+  }
+
+  table.sheet td::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-light);
+  }
+
+  table.sheet td[data-label=""]::before,
+  table.sheet td:not([data-label])::before {
+    display: none;
+  }
+
+  table.sheet td.m-full,
+  table.sheet td.empty-state {
+    grid-column: 1 / -1;
+  }
+
+  table.sheet td.m-check {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 6px;
+    border-bottom: 1px dashed var(--border);
+  }
+
+  table.sheet td.m-check::before {
+    content: "ติ๊กสถานะผ่าน";
+    font-size: 12px;
+    color: var(--text-muted);
+    order: 2;
+    margin-left: 8px;
+    flex: 1;
+  }
+
+  table.sheet td.m-delete {
+    grid-column: 1 / -1;
+    align-items: flex-end;
+    padding-top: 4px;
+    border-top: 1px dashed var(--border);
+  }
+
+  .custom-course-row {
+    flex-direction: column;
+  }
+
+  .custom-course-row .cell-input {
+    max-width: 100% !important;
+  }
+
+  .kpc-form {
+    grid-template-columns: 1fr;
+  }
+
+  .modal {
+    padding: 18px;
+    max-height: 85vh;
+    border-radius: 16px;
+  }
+
+  .toast {
+    left: 14px;
+    right: 14px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    text-align: center;
+  }
+}
+
+@media (max-width: 440px) {
   .stat-row {
     grid-template-columns: 1fr;
   }
-  .topbar-inner {
-    padding: 10px 14px;
-  }
-  .container {
-    padding: 16px 12px 50px;
+  .grid-4 {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1211,5 +1485,736 @@ table.sheet tbody tr.row-failed {
     padding: 2px 0;
     background: transparent;
     appearance: none;
+  }
+}
+
+
+/* =====================================================================
+   🧸🎀 ANIME KAWAII BEAR THEME (หมีน่ารัก การ์ตูน อนิเมะ น้ำตาล-ชมพู)
+   ===================================================================== */
+:root {
+  --bg: #fff3f6;
+  --surface: #fffdfc;
+  --surface-subtle: #fef1eb;
+  --border: #deb29b;
+  --border-strong: #633928;
+  --text: #4d2b1f;
+  --text-muted: #7f5240;
+  --text-light: #ad7e6c;
+
+  /* Anime Sakura Pink (Pre-degree ม.รามฯ) */
+  --ru-primary: #ff6fa5;
+  --ru-primary-hover: #e8518b;
+  --ru-soft: #ffe6f0;
+  --ru-border: #ffa8ca;
+
+  /* Chibi Teddy Brown (สทก. ม.ปลาย) */
+  --dei-primary: #a66341;
+  --dei-primary-hover: #874c2f;
+  --dei-soft: #f8e8dc;
+  --dei-border: #d9ac8f;
+
+  --sakura: #ff7eb3;
+  --sakura-soft: #ffe3ef;
+
+  --amber: #c97b32;
+  --amber-soft: #fff2db;
+  --amber-border: #f0c588;
+
+  --danger: #dc4c64;
+  --danger-soft: #ffe8ec;
+  --success: #558c44;
+  --success-soft: #eef9e8;
+
+  --radius-sm: 14px;
+  --radius-md: 20px;
+  --radius-lg: 26px;
+  --shadow-sm: 0 4px 0 #e9c4b8, 0 6px 14px rgba(99, 57, 40, 0.09);
+  --shadow-md: 0 5px 0 #f2b4cb, 0 10px 24px rgba(99, 57, 40, 0.13);
+  --shadow-lg: 0 7px 0 #633928, 0 22px 46px rgba(77, 43, 31, 0.22);
+
+  /* Kawaii Bear Face Cursors (เคอร์เซอร์น้องหมีคาวาอี้คมชัด 32x32) */
+  --cursor-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='9' cy='10' r='5' fill='%23b87650' stroke='%234d2b1f' stroke-width='2'/%3E%3Ccircle cx='9' cy='10' r='2.4' fill='%23ffb3cf'/%3E%3Ccircle cx='23' cy='10' r='5' fill='%23b87650' stroke='%234d2b1f' stroke-width='2'/%3E%3Ccircle cx='23' cy='10' r='2.4' fill='%23ffb3cf'/%3E%3Cellipse cx='16' cy='18' rx='11' ry='9.5' fill='%23c7855e' stroke='%234d2b1f' stroke-width='2'/%3E%3Ccircle cx='12' cy='17' r='1.7' fill='%234d2b1f'/%3E%3Ccircle cx='12.5' cy='16.4' r='0.6' fill='%23ffffff'/%3E%3Ccircle cx='20' cy='17' r='1.7' fill='%234d2b1f'/%3E%3Ccircle cx='20.5' cy='16.4' r='0.6' fill='%23ffffff'/%3E%3Cellipse cx='8.8' cy='20' rx='2.2' ry='1.3' fill='%23ff85b3' opacity='0.85'/%3E%3Cellipse cx='23.2' cy='20' rx='2.2' ry='1.3' fill='%23ff85b3' opacity='0.85'/%3E%3Cellipse cx='16' cy='20.8' rx='4.2' ry='3' fill='%23fff3ea' stroke='%234d2b1f' stroke-width='1.3'/%3E%3Cellipse cx='16' cy='19.5' rx='1.4' ry='1' fill='%234d2b1f'/%3E%3Cpath d='M14.2 21.5 Q16 23 17.8 21.5' fill='none' stroke='%234d2b1f' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E") 16 16, auto;
+  --cursor-arrow-hover: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='9' cy='10' r='5' fill='%23ff85b3' stroke='%234d2b1f' stroke-width='2'/%3E%3Ccircle cx='9' cy='10' r='2.4' fill='%23ffe3ef'/%3E%3Ccircle cx='23' cy='10' r='5' fill='%23ff85b3' stroke='%234d2b1f' stroke-width='2'/%3E%3Ccircle cx='23' cy='10' r='2.4' fill='%23ffe3ef'/%3E%3Cellipse cx='16' cy='18' rx='11' ry='9.5' fill='%23ffa3c7' stroke='%234d2b1f' stroke-width='2'/%3E%3Ccircle cx='12' cy='17' r='1.7' fill='%234d2b1f'/%3E%3Ccircle cx='12.5' cy='16.4' r='0.6' fill='%23ffffff'/%3E%3Ccircle cx='20' cy='17' r='1.7' fill='%234d2b1f'/%3E%3Ccircle cx='20.5' cy='16.4' r='0.6' fill='%23ffffff'/%3E%3Cellipse cx='8.8' cy='20' rx='2.4' ry='1.4' fill='%23ff4d94' opacity='0.8'/%3E%3Cellipse cx='23.2' cy='20' rx='2.4' ry='1.4' fill='%23ff4d94' opacity='0.8'/%3E%3Cellipse cx='16' cy='20.8' rx='4.2' ry='3' fill='%23fff8fb' stroke='%234d2b1f' stroke-width='1.3'/%3E%3Cellipse cx='16' cy='19.5' rx='1.4' ry='1' fill='%234d2b1f'/%3E%3Cpath d='M14.2 21.5 Q16 23 17.8 21.5' fill='none' stroke='%234d2b1f' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E") 16 16, pointer;
+}
+
+html, body {
+  font-family: 'Mali', 'Noto Sans Thai', system-ui, sans-serif;
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(135deg, rgba(255, 244, 248, 0.25), rgba(255, 238, 230, 0.25)),
+    url('./assets/bg-bear.jpg');
+  background-size: cover, cover;
+  background-position: center, center;
+  background-attachment: fixed, fixed;
+  cursor: var(--cursor-arrow);
+}
+
+a, button, select, label, [role="button"], .check-btn, .cal-cell, .pill, .nav-tab, .mobile-nav-item, .sync-pill {
+  cursor: var(--cursor-arrow-hover) !important;
+}
+
+input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="number"], textarea {
+  cursor: text;
+}
+
+h1, h2, h3, h4, .card-title, .brand-title {
+  font-family: 'Mali', 'Noto Sans Thai', sans-serif;
+  letter-spacing: 0.15px;
+  color: var(--text);
+}
+
+/* ---- Fluffy Bear & Heart Ambient Particles + Mouse Trail ---- */
+.sweet-particles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 45;
+}
+
+.sweet-flake {
+  position: absolute;
+  top: -40px;
+  left: var(--x, 50%);
+  font-size: var(--size, 15px);
+  opacity: var(--op, 0.72);
+  filter: drop-shadow(0 2px 5px rgba(232, 106, 150, 0.35));
+  animation:
+    sweetFall var(--dur, 13s) linear var(--delay, 0s) infinite,
+    sweetSway var(--sway, 4s) ease-in-out var(--delay, 0s) infinite alternate;
+  user-select: none;
+  will-change: transform;
+}
+
+.sweet-puff {
+  position: absolute;
+  top: -50px;
+  left: var(--x, 50%);
+  width: var(--size, 20px);
+  height: var(--size, 20px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffffff 0%, var(--puff-color, #ffd6e6) 60%, rgba(255, 214, 230, 0) 100%);
+  opacity: var(--op, 0.65);
+  filter: blur(1px);
+  animation:
+    sweetFall var(--dur, 16s) linear var(--delay, 0s) infinite,
+    sweetSway var(--sway, 5s) ease-in-out var(--delay, 0s) infinite alternate;
+}
+
+@keyframes sweetFall {
+  0% { transform: translateY(-40px) rotate(0deg); }
+  100% { transform: translateY(108vh) rotate(320deg); }
+}
+
+@keyframes sweetSway {
+  0% { margin-left: -18px; }
+  100% { margin-left: 18px; }
+}
+
+.sweet-sparkle {
+  position: fixed;
+  pointer-events: none;
+  z-index: 95;
+  font-size: 13px;
+  line-height: 1;
+  user-select: none;
+  text-shadow: 0 0 8px rgba(255, 160, 198, 0.85), 0 1px 0 #fff;
+  animation: sparkleFloat 0.85s ease-out forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes sparkleFloat {
+  0% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(0.75) rotate(0deg);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, -18px))) scale(1.18) rotate(12deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, -36px))) scale(0.4) rotate(28deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sweet-particles, .sweet-sparkle { display: none !important; }
+}
+
+/* ---- Topbar ---- */
+.topbar {
+  background: rgba(255, 250, 248, 0.92);
+  border-bottom: 3px solid #8a563d;
+  box-shadow: 0 4px 0 #f5cad8;
+}
+
+.brand-icon {
+  width: 48px;
+  height: 48px;
+  padding: 3px;
+  background: linear-gradient(145deg, #ffe0ec, #f7decb);
+  border: 2.5px solid #4d2b1f;
+  border-radius: 50%;
+  box-shadow: 0 3px 0 #4d2b1f, 0 6px 14px rgba(255, 111, 165, 0.28);
+  animation: floaty 3s ease-in-out infinite;
+}
+
+.brand-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.brand-title::after {
+  content: ' 🐾';
+}
+
+@keyframes floaty {
+  0%, 100% { transform: translateY(0) rotate(-5deg); }
+  50% { transform: translateY(-3px) rotate(5deg); }
+}
+
+/* ---- Tabs (Cartoon Sticker Pills) ---- */
+.nav-tabs-bar {
+  background: transparent;
+  border-bottom: none;
+  padding-top: 12px;
+}
+
+.nav-tabs-inner {
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.nav-tab {
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: #fffdfb;
+  border: 2.5px solid #cfa590;
+  color: var(--text-muted);
+  box-shadow: 0 3px 0 #e9cbbd;
+  transition: transform 0.14s, box-shadow 0.14s, background 0.14s;
+}
+
+.nav-tab:hover {
+  transform: translateY(-2px);
+  background: #fff2f6;
+  border-color: #8a563d;
+  box-shadow: 0 5px 0 #e6b8c4;
+}
+
+.nav-tab.active {
+  background: linear-gradient(135deg, #ffd1e2, #ffe8f0);
+  border: 2.5px solid #6e422e;
+  color: #533223;
+  box-shadow: 0 4px 0 #6e422e;
+}
+
+.nav-tab.active::after,
+.nav-tab[data-tab="dei"].active::after {
+  display: none;
+}
+
+.nav-tab[data-tab="dei"].active {
+  background: linear-gradient(135deg, #f3dac8, #fbe7da);
+  border: 2.5px solid #6e422e;
+  color: #533223;
+  box-shadow: 0 4px 0 #6e422e;
+}
+
+/* ---- Cards (Cartoon Kawaii Bear Sticker Look + Frosted Glass) ---- */
+.card, .section-block, .term-card {
+  background: rgba(255, 252, 250, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 2.5px solid #c99d88;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 5px 0 #eed3c8, 0 10px 24px rgba(107, 65, 48, 0.12);
+  transition: transform 0.16s, box-shadow 0.16s;
+}
+
+.card:hover {
+  box-shadow: 0 6px 0 #e8b8c7, 0 14px 28px rgba(232, 106, 150, 0.13);
+}
+
+.program-card::before {
+  height: 10px;
+  background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.42) 0 8px, transparent 8px 16px);
+  background-blend-mode: overlay;
+}
+
+.program-card.dei::before {
+  background-color: #a96d4f;
+}
+
+.program-card.ru::before {
+  background-color: #f387b0;
+}
+
+/* Kawaii Bear Hero Card with Cartoon Bear Ears */
+.kawaii-hero {
+  position: relative;
+  margin-top: 14px;
+  background: linear-gradient(135deg, #ffe3ee 0%, #fff4ec 52%, #f5dfd0 100%);
+  border: 3px solid #6e422e;
+  box-shadow: 0 6px 0 #6e422e, 0 12px 26px rgba(107, 65, 48, 0.12);
+  text-align: center;
+  padding: 24px 18px;
+  overflow: visible;
+}
+
+.kawaii-hero::before,
+.kawaii-hero::after {
+  content: '';
+  position: absolute;
+  top: -18px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 55%, #ffb6cf 0 42%, #995d3c 44% 100%);
+  border: 3px solid #6e422e;
+  z-index: -1;
+}
+
+.kawaii-hero::before { left: 26px; }
+.kawaii-hero::after { right: 26px; }
+
+.section-head {
+  background: linear-gradient(90deg, #ffeff5, #f8e9df);
+  border-bottom: 2.5px dashed #cfa590;
+}
+
+.section-subhead {
+  background: #fff6f7;
+}
+
+.section-head h3::before {
+  content: '🐻';
+}
+
+/* ---- Buttons & pills (Bouncy Cartoon Buttons) ---- */
+.btn {
+  border-radius: 999px;
+  padding: 9px 16px;
+  font-weight: 700;
+  transition: transform 0.1s, box-shadow 0.1s, background 0.15s;
+}
+
+.btn:hover {
+  transform: translateY(-1.5px);
+}
+
+.btn:active {
+  transform: translateY(2px);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #f37ca7, #e56292);
+  border: 2.5px solid #6e422e;
+  color: #fff;
+  box-shadow: 0 4px 0 #6e422e;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #e86a96, #d14f7e);
+}
+
+.btn-primary:active {
+  box-shadow: 0 1px 0 #6e422e;
+}
+
+.btn-dei {
+  background: linear-gradient(135deg, #b37352, #915739);
+  border: 2.5px solid #533223;
+  color: #fff;
+  box-shadow: 0 4px 0 #533223;
+}
+
+.btn-dei:hover {
+  background: linear-gradient(135deg, #995d3c, #7c482c);
+}
+
+.btn-dei:active {
+  box-shadow: 0 1px 0 #533223;
+}
+
+.btn-secondary {
+  border: 2.5px solid #8a563d;
+  background: #fffdfb;
+  color: var(--text);
+  box-shadow: 0 3px 0 #ddb9a8;
+}
+
+.btn-secondary:hover {
+  background: #fff1f6;
+}
+
+.btn-secondary:active {
+  box-shadow: 0 1px 0 #ddb9a8;
+}
+
+.pill {
+  border: 2px solid #cfa590;
+  background: #fffdfb;
+  box-shadow: 0 2px 0 #ebd2c7;
+}
+
+.pill.active {
+  background: linear-gradient(135deg, #f37ca7, #e56292);
+  border-color: #6e422e;
+  color: #fff;
+  box-shadow: 0 3px 0 #6e422e;
+}
+
+.pill.dei.active {
+  background: linear-gradient(135deg, #b37352, #915739);
+  border-color: #533223;
+  color: #fff;
+  box-shadow: 0 3px 0 #533223;
+}
+
+.sync-pill {
+  border-width: 2px;
+}
+
+/* ---- Inputs ---- */
+.input, .select, .cell-select, .cell-input, .profile-field input {
+  border: 2px solid #d9b4a2;
+  border-radius: 14px;
+  background: #fffbfa;
+  color: var(--text);
+}
+
+.input:focus, .select:focus, .cell-select:focus, .cell-input:focus {
+  border-color: #e86a96;
+  box-shadow: 0 0 0 4px rgba(232, 106, 150, 0.2);
+}
+
+/* ---- Stats & progress ---- */
+.stat-box {
+  border: 2.5px solid #d9b4a2;
+  border-radius: 22px;
+  background: linear-gradient(160deg, #fffcfd, #ffedf3);
+  box-shadow: 0 4px 0 #f1d3dc;
+}
+
+.stat-box:nth-child(2) {
+  background: linear-gradient(160deg, #fffcfa, #f7e9df);
+  box-shadow: 0 4px 0 #e6cbb9;
+}
+
+.stat-box:nth-child(3) {
+  background: linear-gradient(160deg, #fffdf9, #fff2e4);
+  box-shadow: 0 4px 0 #efd7be;
+}
+
+.progress-track,
+.breakdown-bar {
+  background: #fbe4ec;
+  border-radius: 999px;
+  height: 13px;
+  border: 2px solid #8a563d;
+}
+
+.breakdown-bar {
+  height: 9px;
+}
+
+.progress-fill {
+  background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.3) 0 6px, transparent 6px 12px);
+  background-size: 17px 17px;
+  animation: stripe 1.4s linear infinite;
+}
+
+@keyframes stripe {
+  to { background-position: 17px 0; }
+}
+
+.progress-fill.ru { background-color: #ef78a4; }
+.progress-fill.dei { background-color: #a96d4f; }
+.progress-fill.sakura { background-color: #f48bb3; }
+.progress-fill.amber { background-color: #d89658; }
+
+.credit-badge {
+  border: 1.5px solid currentColor;
+}
+
+/* ---- Table rows & checks ---- */
+table.sheet th {
+  background: #fff0f5;
+  color: var(--text-muted);
+  border-bottom: 2.5px dashed #cfa590;
+}
+
+table.sheet td {
+  border-bottom: 1.5px dashed #f0d2c8;
+}
+
+table.sheet tbody tr.row-passed {
+  background: rgba(239, 249, 234, 0.8);
+}
+
+table.sheet tbody tr.row-in_progress {
+  background: rgba(255, 234, 242, 0.65);
+}
+
+table.sheet tbody tr.row-failed {
+  background: rgba(255, 226, 231, 0.75);
+}
+
+.check-btn {
+  border-radius: 50%;
+  border: 2.5px solid #8a563d;
+  background: #fffdfb;
+  transition: transform 0.15s;
+}
+
+.check-btn:hover {
+  transform: scale(1.18) rotate(-6deg);
+}
+
+.check-btn.passed {
+  background: linear-gradient(135deg, #f480ab, #e05d8e);
+  border-color: #6e422e;
+  animation: pop 0.35s ease;
+}
+
+.check-btn.in_progress {
+  background: linear-gradient(135deg, #c68b6d, #995d3c);
+  border-color: #533223;
+}
+
+@keyframes pop {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+.term-head {
+  background: linear-gradient(90deg, #fff0f5, #f6e7dc);
+  border-bottom: 2.5px dashed #cfa590;
+}
+
+.term-badge {
+  background: linear-gradient(135deg, #eb6b97, #995d3c);
+  border: 2px solid #533223;
+}
+
+.term-first-tag {
+  background: #ffe8c2;
+  color: #8d4f20;
+  border: 1.5px solid #d9a46c;
+}
+
+/* ---- Login & modal (with Cartoon Bear Ears) ---- */
+.login-gate {
+  background:
+    linear-gradient(135deg, rgba(255, 244, 248, 0.22), rgba(255, 238, 230, 0.22)),
+    url('./assets/bg-bear.jpg') center / cover fixed;
+}
+
+.login-card {
+  position: relative;
+  background: rgba(255, 252, 250, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 3px solid #6e422e;
+  border-radius: 32px;
+  box-shadow: 0 8px 0 #6e422e, 0 22px 48px rgba(107, 65, 48, 0.22);
+  overflow: visible;
+}
+
+.login-card::before,
+.login-card::after {
+  content: '';
+  position: absolute;
+  top: -22px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 55%, #ffb6cf 0 42%, #995d3c 44% 100%);
+  border: 3px solid #6e422e;
+  z-index: -1;
+}
+
+.login-card::before { left: 32px; }
+.login-card::after { right: 32px; }
+
+.login-card h1::before {
+  content: '🧸 ';
+}
+
+.modal {
+  border: 3px solid #6e422e;
+  border-radius: 28px;
+  box-shadow: 0 7px 0 #6e422e, 0 20px 44px rgba(83, 50, 35, 0.25);
+}
+
+.toast {
+  background: linear-gradient(135deg, #e86a96, #995d3c);
+  border: 2.5px solid #533223;
+  box-shadow: 0 4px 0 #533223;
+  border-radius: 999px;
+}
+
+/* ---- Calendar ---- */
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cal-title {
+  flex: 1;
+  text-align: center;
+  font-size: 16px;
+  color: #7c482c;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.cal-dow {
+  margin-bottom: 6px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.cal-cell {
+  position: relative;
+  min-height: 62px;
+  border: 2px solid #ecc9bc;
+  border-radius: 16px;
+  background: #fffbfa;
+  padding: 6px 4px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: transform 0.12s, background 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cal-cell:hover {
+  transform: translateY(-2px);
+  background: #ffeff4;
+  border-color: #8a563d;
+}
+
+.cal-empty {
+  border: none;
+  background: transparent;
+  cursor: var(--cursor-arrow) !important;
+}
+
+.cal-empty:hover {
+  transform: none;
+  background: transparent;
+}
+
+.cal-num {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.cal-dots {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.cal-dots i, .cal-legend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.cal-count {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #d14f7e;
+}
+
+.cal-today {
+  background: linear-gradient(135deg, #ffe0ec, #f7e1d3);
+  border: 2.5px solid #e86a96;
+}
+
+.cal-selected {
+  border: 2.5px solid #6e422e;
+  box-shadow: 0 3px 0 #6e422e;
+}
+
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.cal-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ---- Mobile tweaks ---- */
+@media (max-width: 768px) {
+  .mobile-bottom-nav {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    border-top: 3px solid #6e422e;
+    border-radius: 24px 24px 0 0;
+    background: rgba(255, 250, 248, 0.97);
+  }
+
+  .mobile-nav-item {
+    border-radius: 16px;
+    font-size: 10.5px;
+  }
+
+  .mobile-nav-item.active {
+    background: linear-gradient(135deg, #ffd8e7, #f5dfd0);
+    border: 2px solid #6e422e;
+    color: #533223;
+  }
+
+  .mobile-nav-item.active .mobile-nav-icon {
+    animation: pop 0.35s ease;
+  }
+
+  .cal-cell {
+    min-height: 50px;
+    padding: 4px 2px;
+    border-radius: 12px;
+  }
+
+  .cal-grid {
+    gap: 4px;
+  }
+
+  table.sheet tbody tr {
+    border: 2.5px solid #d9b4a2;
+    border-radius: 20px;
+    box-shadow: 0 3px 0 #eed3c8;
+  }
+
+  table.sheet tbody {
+    background: transparent;
   }
 }

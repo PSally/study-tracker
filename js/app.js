@@ -18,6 +18,11 @@ const {
   RU_SUGGESTED_PLAN,
 } = ns.Curriculum;
 const { StorageService } = ns;
+const MakeupSchedule = ns.MakeupSchedule || {
+  MAKEUP_TERM_LABEL: 'ซ.1/2569 (21–26 ม.ค. 2570)',
+  MAKEUP_RE169: {},
+  parseMakeupSlot: () => null,
+};
 
 const storage = new StorageService();
 
@@ -61,7 +66,13 @@ function createDefaultState() {
   const deiCompulsory = {};
   DEI_COMPULSORY_GROUPS.forEach((g) => {
     g.courses.forEach((c) => {
-      deiCompulsory[c.id] = { status: 'not_started', grade: '', term: '', note: '' };
+      deiCompulsory[c.id] = {
+        status: 'not_started',
+        grade: '',
+        term: '',
+        note: '',
+        ...(c.defaultRecord || {}),
+      };
     });
   });
 
@@ -122,7 +133,7 @@ function createDefaultState() {
   });
 
   return {
-    version: 1,
+    version: 2,
     profile: {
       name: '',
       deiStudentId: '',
@@ -130,6 +141,7 @@ function createDefaultState() {
       startTerm: '2/68',
     },
     terms: [...DEFAULT_TERMS],
+    events: [],
     dei: {
       compulsory: deiCompulsory,
       electives: DEI_DEFAULT_ELECTIVES.map((e) => ({ ...e })),
@@ -151,13 +163,19 @@ function normalizeState(raw) {
   const base = createDefaultState();
   if (!raw || typeof raw !== 'object') return base;
 
+  const isLegacyV1 = !raw.version || Number(raw.version) < 2;
+
   const merged = {
     ...base,
+    version: 2,
     profile: { ...base.profile, ...(raw.profile || {}) },
     terms: Array.isArray(raw.terms) && raw.terms.length > 0 ? raw.terms : base.terms,
+    events: Array.isArray(raw.events) ? raw.events : [],
     dei: {
       compulsory: { ...base.dei.compulsory },
-      electives: Array.isArray(raw.dei?.electives) ? raw.dei.electives : base.dei.electives,
+      electives: isLegacyV1
+        ? base.dei.electives
+        : (Array.isArray(raw.dei?.electives) ? raw.dei.electives : base.dei.electives),
       kpcLogs: Array.isArray(raw.dei?.kpcLogs) ? raw.dei.kpcLogs : [],
       ethicsPassed: Boolean(raw.dei?.ethicsPassed),
       nnetPassed: Boolean(raw.dei?.nnetPassed),
@@ -171,11 +189,15 @@ function normalizeState(raw) {
     },
   };
 
-  Object.keys(base.dei.compulsory).forEach((id) => {
-    if (raw.dei?.compulsory?.[id]) {
-      merged.dei.compulsory[id] = { ...base.dei.compulsory[id], ...raw.dei.compulsory[id] };
-    }
-  });
+  if (!isLegacyV1) {
+    Object.keys(base.dei.compulsory).forEach((id) => {
+      if (raw.dei?.compulsory?.[id]) {
+        merged.dei.compulsory[id] = { ...base.dei.compulsory[id], ...raw.dei.compulsory[id] };
+      }
+    });
+  } else {
+    merged._migratedToV2 = true;
+  }
   Object.keys(base.ru.ge).forEach((id) => {
     if (raw.ru?.ge?.[id]) {
       merged.ru.ge[id] = { ...base.ru.ge[id], ...raw.ru.ge[id] };
@@ -216,9 +238,15 @@ function normalizeState(raw) {
 let state = createDefaultState();
 let pendingLocalDraft = null;
 let saveTimer = null;
+let lastSyncError = '';
 
 const ui = {
   activeTab: 'overview',
+  calYear: new Date().getFullYear(),
+  calMonth: new Date().getMonth(),
+  calSelected: '',
+  makeupSearch: '',
+  makeupScope: 'failed_or_active',
   deiStatusFilter: 'all',
   deiSearch: '',
   ruCategoryFilter: 'all',
@@ -484,6 +512,7 @@ function scheduleSave() {
   saveTimer = setTimeout(async () => {
     try {
       const res = await storage.saveState(state);
+      lastSyncError = '';
       const t = formatTime(res.updatedAt);
       if (res.source === 'cloud') {
         setSyncBadge('cloud', `บันทึกบน Supabase แล้ว ✓ ${t}`);
@@ -492,8 +521,9 @@ function scheduleSave() {
       }
     } catch (err) {
       console.error(err);
+      lastSyncError = err.message || String(err);
       setSyncBadge('error', 'บันทึกไม่สำเร็จ — คลิกดูรายละเอียด');
-      showToast(err.message);
+      showToast(lastSyncError);
     }
   }, 600);
 }
@@ -515,6 +545,8 @@ function updateTabChips() {
   const chipRu = document.getElementById('chip-ru');
   if (chipDei) chipDei.textContent = `${dei.totalPassed}/${DEI_TARGETS.totalCredits}`;
   if (chipRu) chipRu.textContent = `${ru.totalPassed}/${RU_TARGETS.totalCredits}`;
+  const chipCal = document.getElementById('chip-cal');
+  if (chipCal) chipCal.textContent = String(upcomingEvents().length);
 }
 
 // ================= RENDER HELPERS =================
@@ -543,8 +575,8 @@ function buildStatusOptionsHtml(selectedStatus) {
 }
 
 function renderCheckIcon(status) {
-  if (status === 'passed') return '✓';
-  if (status === 'in_progress') return '•';
+  if (status === 'passed') return '♥';
+  if (status === 'in_progress') return '✿';
   if (status === 'failed') return '!';
   return '';
 }
@@ -613,7 +645,7 @@ function renderOverview() {
           <div class="card-header" style="margin-bottom: 6px;">
             <div>
               <h2 class="card-title">สทก.ทางไกล ม.ปลาย</h2>
-              <p class="card-sub">สถาบันการศึกษาทางไกล (หลักสูตร กศน./สกร. 76 หน่วยกิต)</p>
+              <p class="card-sub">สถาบันการศึกษาทางไกล (หลักสูตร สกร. 2567 — 76 หน่วยกิต)</p>
             </div>
             <button type="button" class="btn btn-dei btn-sm" data-goto-tab="dei">เปิดใบติดตาม →</button>
           </div>
@@ -631,7 +663,7 @@ function renderOverview() {
             </div>
             <div class="stat-box">
               <div class="stat-label">กพช. สะสม</div>
-              <div class="stat-value tabular">${dei.kpcHours}<span style="font-size:13px;color:var(--text-light);">/200</span></div>
+              <div class="stat-value tabular">${dei.kpcHours}<span style="font-size:13px;color:var(--text-light);">/${DEI_TARGETS.kpcHours}</span></div>
               <div class="stat-foot">ชั่วโมง (${kpcPct}%)</div>
             </div>
           </div>
@@ -648,12 +680,12 @@ function renderOverview() {
 
           <div class="breakdown-list">
             <div class="breakdown-item">
-              <span>วิชาบังคับ 5 สาระ</span>
+              <span>วิชาบังคับ (8 วิชา)</span>
               <div class="breakdown-bar"><div class="progress-fill dei" style="width:${clampPct(dei.compPassed, DEI_TARGETS.compulsoryCredits)}%;"></div></div>
               <strong class="tabular">${dei.compPassed}/${DEI_TARGETS.compulsoryCredits} นก.</strong>
             </div>
             <div class="breakdown-item">
-              <span>วิชาเลือก (บังคับเลือก + เสรี)</span>
+              <span>วิชาเลือก</span>
               <div class="breakdown-bar"><div class="progress-fill dei" style="width:${clampPct(dei.elecPassed, DEI_TARGETS.electiveCredits)}%;"></div></div>
               <strong class="tabular">${dei.elecPassed}/${DEI_TARGETS.electiveCredits} นก.</strong>
             </div>
@@ -825,29 +857,29 @@ function renderDeiView() {
               const rec = state.dei.compulsory[c.id];
               return `
                 <tr class="row-${rec.status}">
-                  <td>
+                  <td class="m-check">
                     <button type="button" class="check-btn ${rec.status}" data-dei-comp-toggle="${c.id}" title="คลิกเพื่อติ๊กผ่าน/ยังไม่เรียน">${renderCheckIcon(rec.status)}</button>
                   </td>
-                  <td><span class="course-code dei">${escapeHtml(c.code)}</span></td>
-                  <td><span class="course-name">${escapeHtml(c.name)}</span></td>
-                  <td class="tabular" style="font-weight:700;">${c.credits}</td>
-                  <td>
+                  <td data-label="รหัสวิชา"><span class="course-code dei">${escapeHtml(c.code)}</span></td>
+                  <td class="m-full" data-label="ชื่อรายวิชา"><span class="course-name">${escapeHtml(c.name)}</span></td>
+                  <td data-label="หน่วยกิต" class="tabular" style="font-weight:700;">${c.credits}</td>
+                  <td data-label="สถานะ">
                     <select class="cell-select status-select status-${rec.status}" data-dei-comp-id="${c.id}" data-field="status">
                       ${buildStatusOptionsHtml(rec.status)}
                     </select>
                   </td>
-                  <td>
+                  <td data-label="เกรด">
                     <select class="cell-select tabular" data-dei-comp-id="${c.id}" data-field="grade">
                       ${buildGradeOptionsHtml(DEI_GRADES, rec.grade)}
                     </select>
                   </td>
-                  <td>
+                  <td data-label="ภาคเรียน">
                     <select class="cell-select tabular" data-dei-comp-id="${c.id}" data-field="term">
                       ${buildTermOptionsHtml(rec.term)}
                     </select>
                   </td>
-                  <td>
-                    <input type="text" class="cell-input" data-dei-comp-id="${c.id}" data-field="note" value="${escapeHtml(rec.note)}" placeholder="โน้ต..." />
+                  <td class="m-full" data-label="หมายเหตุ / คะแนน">
+                    <input type="text" class="cell-input" data-dei-comp-id="${c.id}" data-field="note" value="${escapeHtml(rec.note)}" placeholder="โน้ต / คะแนนสอบ..." />
                   </td>
                 </tr>
               `;
@@ -869,7 +901,7 @@ function renderDeiView() {
           <div>
             <h2 class="card-title">ใบติดตามโครงสร้างหลักสูตร สทก.ทางไกล ระดับ ม.ปลาย</h2>
             <p class="card-sub">
-              เกณฑ์จบ: วิชาบังคับ 44 นก. + วิชาเลือกไม่น้อยกว่า 32 นก. = <strong>76 หน่วยกิต</strong> + กพช. 200 ชม. + คุณธรรม + N-NET
+              หลักสูตร สกร. 2567 &bull; เกณฑ์จบ: วิชาบังคับ ${DEI_TARGETS.compulsoryCredits} นก. + วิชาเลือกไม่น้อยกว่า ${DEI_TARGETS.electiveCredits} นก. = <strong>${DEI_TARGETS.totalCredits} หน่วยกิต</strong> + กพช. ${DEI_TARGETS.kpcHours} ชม. + คุณธรรม + N-NET
               ${state.profile.name || state.profile.deiStudentId ? `<br />ผู้เรียน: <strong>${escapeHtml(state.profile.name || '—')}</strong> &bull; รหัสประจำตัว: <strong>${escapeHtml(state.profile.deiStudentId || '—')}</strong> &bull; เริ่มเรียน <strong>${escapeHtml(state.profile.startTerm || '2/68')}</strong>` : ''}
             </p>
           </div>
@@ -898,10 +930,10 @@ function renderDeiView() {
         </div>
       </div>
 
-      <!-- Compulsory 44 credits -->
+      <!-- Compulsory 41 credits -->
       <div class="section-block">
         <div class="section-head">
-          <h3>หมวดวิชาบังคับ 5 สาระการเรียนรู้</h3>
+          <h3>หมวดวิชาบังคับ 8 สาระการเรียนรู้ (หลักสูตร สกร. 2567)</h3>
           <span class="credit-badge ${stats.compPassed >= DEI_TARGETS.compulsoryCredits ? 'done' : 'dei'} tabular">
             ${stats.compPassed} / ${DEI_TARGETS.compulsoryCredits} หน่วยกิต
           </span>
@@ -909,12 +941,12 @@ function renderDeiView() {
         ${compulsoryHtml || '<div class="empty-state">ไม่พบรายวิชาบังคับตามตัวกรองที่เลือก</div>'}
       </div>
 
-      <!-- Electives 32 credits -->
+      <!-- Electives 35 credits -->
       <div class="section-block">
         <div class="section-head">
           <div>
-            <h3>หมวดวิชาเลือก (เลือกบังคับ + เลือกเสรี + โครงงาน)</h3>
-            <span style="font-size:12px;color:var(--text-muted);">ใส่รหัสวิชาเลือกที่คุณลงเรียนใน สทก. เพิ่ม/แก้ไข/ลบได้อิสระ (ต้องเก็บอย่างน้อย 32 หน่วยกิต)</span>
+            <h3>หมวดวิชาเลือก (ไม่น้อยกว่า ${DEI_TARGETS.electiveCredits} หน่วยกิต)</h3>
+            <span style="font-size:12px;color:var(--text-muted);">ใส่รหัสวิชาเลือกที่คุณลงเรียนใน สทก. เพิ่ม/แก้ไข/ลบได้อิสระ</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
             <span class="credit-badge ${stats.elecPassed >= DEI_TARGETS.electiveCredits ? 'done' : 'dei'} tabular">
@@ -944,40 +976,40 @@ function renderDeiView() {
                 <tr><td colspan="9" class="empty-state">ยังไม่มีวิชาเลือกที่ตรงกับตัวกรอง — กดปุ่ม "+ เพิ่มวิชาเลือก" เพื่อเพิ่มรายวิชาได้ครับ</td></tr>
               ` : visibleElectives.map((e) => `
                 <tr class="row-${e.status}">
-                  <td>
+                  <td class="m-check">
                     <button type="button" class="check-btn ${e.status}" data-dei-elec-toggle="${e.id}">${renderCheckIcon(e.status)}</button>
                   </td>
-                  <td>
+                  <td data-label="รหัสวิชา">
                     <input type="text" class="cell-input course-code dei" data-dei-elec-id="${e.id}" data-field="code" value="${escapeHtml(e.code)}" placeholder="รหัสวิชา" />
                   </td>
-                  <td>
+                  <td class="m-full" data-label="ชื่อรายวิชาเลือก">
                     <input type="text" class="cell-input" data-dei-elec-id="${e.id}" data-field="name" value="${escapeHtml(e.name)}" placeholder="ชื่อรายวิชา" />
                   </td>
-                  <td>
+                  <td data-label="ประเภท">
                     <select class="cell-select" data-dei-elec-id="${e.id}" data-field="tag">
-                      ${['เลือกบังคับ', 'เลือกเสรี', 'โครงงาน'].map((tg) => `<option value="${tg}" ${e.tag === tg ? 'selected' : ''}>${tg}</option>`).join('')}
+                      ${['วิชาเลือก', 'เลือกบังคับ', 'เลือกเสรี', 'โครงงาน'].map((tg) => `<option value="${tg}" ${e.tag === tg ? 'selected' : ''}>${tg}</option>`).join('')}
                     </select>
                   </td>
-                  <td>
+                  <td data-label="หน่วยกิต">
                     <input type="number" min="1" max="10" class="cell-input tabular" data-dei-elec-id="${e.id}" data-field="credits" value="${e.credits}" />
                   </td>
-                  <td>
+                  <td data-label="สถานะ">
                     <select class="cell-select status-select status-${e.status}" data-dei-elec-id="${e.id}" data-field="status">
                       ${buildStatusOptionsHtml(e.status)}
                     </select>
                   </td>
-                  <td>
+                  <td data-label="เกรด">
                     <select class="cell-select tabular" data-dei-elec-id="${e.id}" data-field="grade">
                       ${buildGradeOptionsHtml(DEI_GRADES, e.grade)}
                     </select>
                   </td>
-                  <td>
+                  <td data-label="ภาคเรียน">
                     <select class="cell-select tabular" data-dei-elec-id="${e.id}" data-field="term">
                       ${buildTermOptionsHtml(e.term)}
                     </select>
                   </td>
-                  <td class="no-print">
-                    <button type="button" class="btn btn-danger-ghost" data-dei-elec-del="${e.id}" title="ลบวิชานี้">✕</button>
+                  <td class="no-print m-delete">
+                    <button type="button" class="btn btn-danger-ghost" data-dei-elec-del="${e.id}" title="ลบวิชานี้">✕ ลบ</button>
                   </td>
                 </tr>
               `).join('')}
@@ -992,7 +1024,7 @@ function renderDeiView() {
           <div class="card-header" style="margin-bottom: 10px;">
             <div>
               <h3 class="card-title">กิจกรรมพัฒนาคุณภาพชีวิต (กพช.)</h3>
-              <p class="card-sub">ต้องสะสมไม่น้อยกว่า 200 ชั่วโมงตลอดหลักสูตร ม.ปลาย</p>
+              <p class="card-sub">หลักสูตร สกร. 2567 กำหนดไม่น้อยกว่า ${DEI_TARGETS.kpcHours} ชั่วโมงตลอดหลักสูตร ม.ปลาย</p>
             </div>
             <span class="credit-badge ${stats.kpcHours >= DEI_TARGETS.kpcHours ? 'done' : 'dei'} tabular">
               ${stats.kpcHours} / ${DEI_TARGETS.kpcHours} ชม.
@@ -1113,10 +1145,10 @@ function renderRuView() {
                 const rec = state.ru.ge[slot.id];
                 return `
                   <tr class="row-${rec.status}">
-                    <td>
+                    <td class="m-check">
                       <button type="button" class="check-btn ${rec.status}" data-ru-toggle="ge:${slot.id}">${renderCheckIcon(rec.status)}</button>
                     </td>
-                    <td>
+                    <td class="m-full" data-label="กระบวนวิชา">
                       ${slot.type === 'fixed' ? `
                         <span class="course-code">${escapeHtml(slot.code)}</span>
                         ${slot.altCode ? `<span class="course-alt">(เดิม ${escapeHtml(slot.altCode)})</span>` : ''}
@@ -1131,23 +1163,23 @@ function renderRuView() {
                         </select>
                       `}
                     </td>
-                    <td class="tabular" style="font-weight:700;">${slot.credits}</td>
-                    <td>
+                    <td data-label="หน่วยกิต" class="tabular" style="font-weight:700;">${slot.credits}</td>
+                    <td data-label="สถานะ">
                       <select class="cell-select status-select status-${rec.status}" data-ru-bucket="ge" data-ru-id="${slot.id}" data-field="status">
                         ${buildStatusOptionsHtml(rec.status)}
                       </select>
                     </td>
-                    <td>
+                    <td data-label="เกรด">
                       <select class="cell-select tabular" data-ru-bucket="ge" data-ru-id="${slot.id}" data-field="grade">
                         ${buildGradeOptionsHtml(RU_GRADES, rec.grade)}
                       </select>
                     </td>
-                    <td>
+                    <td data-label="ภาคเรียน">
                       <select class="cell-select tabular" data-ru-bucket="ge" data-ru-id="${slot.id}" data-field="term">
                         ${buildTermOptionsHtml(rec.term)}
                       </select>
                     </td>
-                    <td>
+                    <td class="m-full" data-label="หมายเหตุ">
                       <input type="text" class="cell-input" data-ru-bucket="ge" data-ru-id="${slot.id}" data-field="note" value="${escapeHtml(rec.note)}" placeholder="โน้ต..." />
                     </td>
                   </tr>
@@ -1209,34 +1241,34 @@ function renderRuView() {
                   const rec = state.ru.majorCompulsory[c.id];
                   return `
                     <tr class="row-${rec.status}">
-                      <td>
+                      <td class="m-check">
                         <button type="button" class="check-btn ${rec.status}" data-ru-toggle="majorCompulsory:${c.id}">${renderCheckIcon(rec.status)}</button>
                       </td>
-                      <td>
+                      <td data-label="รหัสวิชา">
                         <span class="course-code">${escapeHtml(c.prereqMark)}${escapeHtml(c.code)}</span>
                         ${c.altCode ? `<span class="course-alt">(${escapeHtml(c.altCode)})</span>` : ''}
                       </td>
-                      <td>
+                      <td class="m-full" data-label="ชื่อกระบวนวิชา">
                         <span class="course-name">${escapeHtml(c.name)}</span>
                         <span class="course-en">${escapeHtml(c.enName)}</span>
                       </td>
-                      <td class="tabular" style="font-weight:700;">${c.credits}</td>
-                      <td>
+                      <td data-label="หน่วยกิต" class="tabular" style="font-weight:700;">${c.credits}</td>
+                      <td data-label="สถานะ">
                         <select class="cell-select status-select status-${rec.status}" data-ru-bucket="majorCompulsory" data-ru-id="${c.id}" data-field="status">
                           ${buildStatusOptionsHtml(rec.status)}
                         </select>
                       </td>
-                      <td>
+                      <td data-label="เกรด">
                         <select class="cell-select tabular" data-ru-bucket="majorCompulsory" data-ru-id="${c.id}" data-field="grade">
                           ${buildGradeOptionsHtml(RU_GRADES, rec.grade)}
                         </select>
                       </td>
-                      <td>
+                      <td data-label="ภาคเรียน">
                         <select class="cell-select tabular" data-ru-bucket="majorCompulsory" data-ru-id="${c.id}" data-field="term">
                           ${buildTermOptionsHtml(rec.term)}
                         </select>
                       </td>
-                      <td>
+                      <td class="m-full" data-label="หมายเหตุ">
                         <input type="text" class="cell-input" data-ru-bucket="majorCompulsory" data-ru-id="${c.id}" data-field="note" value="${escapeHtml(rec.note)}" placeholder="โน้ต..." />
                       </td>
                     </tr>
@@ -1292,10 +1324,10 @@ function renderRuView() {
                   const isDup = effectiveCode && dupMajorElec.has(effectiveCode);
                   return `
                     <tr class="row-${rec.status}">
-                      <td>
+                      <td class="m-check">
                         <button type="button" class="check-btn ${rec.status}" data-ru-toggle="majorElective:${slot.id}">${renderCheckIcon(rec.status)}</button>
                       </td>
-                      <td>
+                      <td class="m-full" data-label="วิชาเอกเลือก JPN">
                         <select class="cell-select" data-ru-bucket="majorElective" data-ru-id="${slot.id}" data-field="selectedCode">
                           <option value="">— เลือก${slot.label} —</option>
                           ${categories.map((cat) => `
@@ -1315,23 +1347,23 @@ function renderRuView() {
                         ` : ''}
                         ${isDup ? `<span class="dup-warn">⚠ เลือกวิชา ${escapeHtml(effectiveCode)} ซ้ำกับช่องอื่น</span>` : ''}
                       </td>
-                      <td class="tabular" style="font-weight:700;">${slot.credits}</td>
-                      <td>
+                      <td data-label="หน่วยกิต" class="tabular" style="font-weight:700;">${slot.credits}</td>
+                      <td data-label="สถานะ">
                         <select class="cell-select status-select status-${rec.status}" data-ru-bucket="majorElective" data-ru-id="${slot.id}" data-field="status">
                           ${buildStatusOptionsHtml(rec.status)}
                         </select>
                       </td>
-                      <td>
+                      <td data-label="เกรด">
                         <select class="cell-select tabular" data-ru-bucket="majorElective" data-ru-id="${slot.id}" data-field="grade">
                           ${buildGradeOptionsHtml(RU_GRADES, rec.grade)}
                         </select>
                       </td>
-                      <td>
+                      <td data-label="ภาคเรียน">
                         <select class="cell-select tabular" data-ru-bucket="majorElective" data-ru-id="${slot.id}" data-field="term">
                           ${buildTermOptionsHtml(rec.term)}
                         </select>
                       </td>
-                      <td>
+                      <td class="m-full" data-label="หมายเหตุ">
                         <input type="text" class="cell-input" data-ru-bucket="majorElective" data-ru-id="${slot.id}" data-field="note" value="${escapeHtml(rec.note)}" placeholder="โน้ต..." />
                       </td>
                     </tr>
@@ -1387,10 +1419,10 @@ function renderRuView() {
                   const isDup = effectiveCode && dupMinor.has(effectiveCode);
                   return `
                     <tr class="row-${rec.status}">
-                      <td>
+                      <td class="m-check">
                         <button type="button" class="check-btn ${rec.status}" data-ru-toggle="minor:${slot.id}">${renderCheckIcon(rec.status)}</button>
                       </td>
-                      <td>
+                      <td class="m-full" data-label="วิชาโทจิตวิทยา">
                         <select class="cell-select" data-ru-bucket="minor" data-ru-id="${slot.id}" data-field="selectedCode">
                           <option value="">— เลือก${slot.label} —</option>
                           ${groups.map((grp) => `
@@ -1410,23 +1442,23 @@ function renderRuView() {
                         ` : ''}
                         ${isDup ? `<span class="dup-warn">⚠ เลือกวิชา ${escapeHtml(effectiveCode)} ซ้ำกับช่องอื่น</span>` : ''}
                       </td>
-                      <td class="tabular" style="font-weight:700;">${slot.credits}</td>
-                      <td>
+                      <td data-label="หน่วยกิต" class="tabular" style="font-weight:700;">${slot.credits}</td>
+                      <td data-label="สถานะ">
                         <select class="cell-select status-select status-${rec.status}" data-ru-bucket="minor" data-ru-id="${slot.id}" data-field="status">
                           ${buildStatusOptionsHtml(rec.status)}
                         </select>
                       </td>
-                      <td>
+                      <td data-label="เกรด">
                         <select class="cell-select tabular" data-ru-bucket="minor" data-ru-id="${slot.id}" data-field="grade">
                           ${buildGradeOptionsHtml(RU_GRADES, rec.grade)}
                         </select>
                       </td>
-                      <td>
+                      <td data-label="ภาคเรียน">
                         <select class="cell-select tabular" data-ru-bucket="minor" data-ru-id="${slot.id}" data-field="term">
                           ${buildTermOptionsHtml(rec.term)}
                         </select>
                       </td>
-                      <td>
+                      <td class="m-full" data-label="หมายเหตุ">
                         <input type="text" class="cell-input" data-ru-bucket="minor" data-ru-id="${slot.id}" data-field="note" value="${escapeHtml(rec.note)}" placeholder="โน้ต..." />
                       </td>
                     </tr>
@@ -1476,32 +1508,32 @@ function renderRuView() {
                   const rec = state.ru.freeElective[slot.id];
                   return `
                     <tr class="row-${rec.status}">
-                      <td>
+                      <td class="m-check">
                         <button type="button" class="check-btn ${rec.status}" data-ru-toggle="freeElective:${slot.id}">${renderCheckIcon(rec.status)}</button>
                       </td>
-                      <td>
+                      <td data-label="รหัสวิชา">
                         <input type="text" class="cell-input course-code" data-ru-bucket="freeElective" data-ru-id="${slot.id}" data-field="customCode" value="${escapeHtml(rec.customCode)}" placeholder="เช่น ENG1001" />
                       </td>
-                      <td>
+                      <td class="m-full" data-label="ชื่อวิชาเลือกเสรี">
                         <input type="text" class="cell-input" data-ru-bucket="freeElective" data-ru-id="${slot.id}" data-field="customName" value="${escapeHtml(rec.customName)}" placeholder="ระบุชื่อวิชาเลือกเสรี..." />
                       </td>
-                      <td class="tabular" style="font-weight:700;">${slot.credits}</td>
-                      <td>
+                      <td data-label="หน่วยกิต" class="tabular" style="font-weight:700;">${slot.credits}</td>
+                      <td data-label="สถานะ">
                         <select class="cell-select status-select status-${rec.status}" data-ru-bucket="freeElective" data-ru-id="${slot.id}" data-field="status">
                           ${buildStatusOptionsHtml(rec.status)}
                         </select>
                       </td>
-                      <td>
+                      <td data-label="เกรด">
                         <select class="cell-select tabular" data-ru-bucket="freeElective" data-ru-id="${slot.id}" data-field="grade">
                           ${buildGradeOptionsHtml(RU_GRADES, rec.grade)}
                         </select>
                       </td>
-                      <td>
+                      <td data-label="ภาคเรียน">
                         <select class="cell-select tabular" data-ru-bucket="freeElective" data-ru-id="${slot.id}" data-field="term">
                           ${buildTermOptionsHtml(rec.term)}
                         </select>
                       </td>
-                      <td>
+                      <td class="m-full" data-label="หมายเหตุ">
                         <input type="text" class="cell-input" data-ru-bucket="freeElective" data-ru-id="${slot.id}" data-field="note" value="${escapeHtml(rec.note)}" placeholder="โน้ต..." />
                       </td>
                     </tr>
@@ -1671,18 +1703,18 @@ function renderTermsView() {
                     const statusLabel = (COURSE_STATUSES.find((s) => s.value === c.status) || COURSE_STATUSES[0]).label;
                     return `
                       <tr class="row-${c.status}">
-                        <td>
+                        <td data-label="หลักสูตร">
                           <span class="program-tag ${c.program}" style="margin:0;">
                             ${c.program === 'dei' ? 'สทก. ม.ปลาย' : 'ม.รามฯ Pre-deg'}
                           </span>
                         </td>
-                        <td><span class="course-code ${c.program}">${escapeHtml(c.code)}</span></td>
-                        <td><span class="course-name">${escapeHtml(c.name)}</span></td>
-                        <td style="font-size:12px;color:var(--text-muted);">${escapeHtml(c.groupTitle)}</td>
-                        <td class="tabular" style="font-weight:700;">${c.credits}</td>
-                        <td><span style="font-size:12.5px;font-weight:600;">${escapeHtml(statusLabel)}</span></td>
-                        <td class="tabular" style="font-weight:700;font-size:14px;">${escapeHtml(c.grade || '—')}</td>
-                        <td style="font-size:12px;color:var(--text-muted);">${escapeHtml(c.note || '')}</td>
+                        <td data-label="รหัสวิชา"><span class="course-code ${c.program}">${escapeHtml(c.code)}</span></td>
+                        <td class="m-full" data-label="ชื่อรายวิชา"><span class="course-name">${escapeHtml(c.name)}</span></td>
+                        <td data-label="หมวดวิชา" style="font-size:12px;color:var(--text-muted);">${escapeHtml(c.groupTitle)}</td>
+                        <td data-label="หน่วยกิต" class="tabular" style="font-weight:700;">${c.credits}</td>
+                        <td data-label="สถานะ"><span style="font-size:12.5px;font-weight:600;">${escapeHtml(statusLabel)}</span></td>
+                        <td data-label="เกรด" class="tabular" style="font-weight:700;font-size:14px;">${escapeHtml(c.grade || '—')}</td>
+                        <td class="m-full" data-label="หมายเหตุ" style="font-size:12px;color:var(--text-muted);">${escapeHtml(c.note || '—')}</td>
                       </tr>
                     `;
                   }).join('')}
@@ -1748,11 +1780,11 @@ function renderTermsView() {
               <tbody>
                 ${unscheduled.map((c) => `
                   <tr>
-                    <td><span class="program-tag ${c.program}" style="margin:0;">${c.program === 'dei' ? 'สทก. ม.ปลาย' : 'ม.รามฯ'}</span></td>
-                    <td><span class="course-code ${c.program}">${escapeHtml(c.code)}</span></td>
-                    <td>${escapeHtml(c.name)}</td>
-                    <td class="tabular">${c.credits}</td>
-                    <td class="tabular">${escapeHtml(c.grade || '—')}</td>
+                    <td data-label="หลักสูตร"><span class="program-tag ${c.program}" style="margin:0;">${c.program === 'dei' ? 'สทก. ม.ปลาย' : 'ม.รามฯ'}</span></td>
+                    <td data-label="รหัสวิชา"><span class="course-code ${c.program}">${escapeHtml(c.code)}</span></td>
+                    <td class="m-full" data-label="ชื่อรายวิชา">${escapeHtml(c.name)}</td>
+                    <td data-label="หน่วยกิต" class="tabular">${c.credits}</td>
+                    <td data-label="เกรด" class="tabular">${escapeHtml(c.grade || '—')}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -1764,10 +1796,270 @@ function renderTermsView() {
   `;
 }
 
+// ================= VIEW 5: CALENDAR & MAKEUP EXAMS =================
+const EVENT_TYPES = {
+  exam: { label: 'สอบ', icon: '📝', color: '#ec4899' },
+  makeup: { label: 'สอบซ่อม', icon: '🔁', color: '#ef4444' },
+  assignment: { label: 'ส่งงาน', icon: '📚', color: '#f59e0b' },
+  group: { label: 'พบกลุ่ม / เรียน', icon: '👩‍🏫', color: '#14b8a6' },
+  kpc: { label: 'กพช.', icon: '🌱', color: '#22c55e' },
+  other: { label: 'อื่น ๆ', icon: '⭐', color: '#8b5cf6' },
+};
+const TH_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+const TH_DOW = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function toDateStr(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function formatThaiDate(str) {
+  if (!str) return '';
+  const [y, m, d] = str.split('-').map(Number);
+  return `${d} ${TH_MONTHS[m - 1]} ${y + 543}`;
+}
+
+function upcomingEvents() {
+  const today = toDateStr(new Date());
+  return (state.events || [])
+    .filter((e) => e.date >= today)
+    .sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+}
+
+function daysUntil(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  const target = new Date(y, m - 1, d);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((target - today) / 86400000);
+}
+
+function renderCalendarView() {
+  const y = ui.calYear;
+  const m = ui.calMonth;
+  const todayStr = toDateStr(new Date());
+  const startDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const events = state.events || [];
+  const byDate = {};
+  events.forEach((e) => {
+    (byDate[e.date] = byDate[e.date] || []).push(e);
+  });
+
+  let cells = '';
+  for (let i = 0; i < startDow; i += 1) cells += '<div class="cal-cell cal-empty"></div>';
+  for (let d = 1; d <= daysInMonth; d += 1) {
+    const ds = `${y}-${pad2(m + 1)}-${pad2(d)}`;
+    const evs = byDate[ds] || [];
+    const cls = ['cal-cell'];
+    if (ds === todayStr) cls.push('cal-today');
+    if (ds === ui.calSelected) cls.push('cal-selected');
+    cells += `
+      <button type="button" class="${cls.join(' ')}" data-cal-day="${ds}">
+        <span class="cal-num">${d}</span>
+        <span class="cal-dots">
+          ${evs.slice(0, 4).map((e) => `<i style="background:${(EVENT_TYPES[e.type] || EVENT_TYPES.other).color}"></i>`).join('')}
+        </span>
+        ${evs.length > 0 ? `<span class="cal-count">${evs.length}</span>` : ''}
+      </button>`;
+  }
+
+  const sel = ui.calSelected || todayStr;
+  const selEvents = byDate[sel] || [];
+
+  const upcoming = upcomingEvents().slice(0, 8);
+
+  // Courses not passed yet -> auto-match with ภาค ซ.1/2569 schedule
+  const allCourses = [...getAllDeiCourses(), ...getAllRuCourses()];
+  const failed = allCourses.filter((c) => c.status === 'failed');
+  const waiting = allCourses.filter((c) => c.status === 'in_progress');
+  const ruUnpassedAll = getAllRuCourses().filter(
+    (c) => c.status !== 'passed' && c.code && !c.code.includes('XXXX') && c.code !== 'ยังไม่เลือก' && c.code !== 'เลือกเสรี'
+  );
+
+  const makeupTargets =
+    ui.makeupScope === 'all_ru_unpassed'
+      ? ruUnpassedAll
+      : [...failed, ...waiting.filter((c) => c.program === 'ru')];
+
+  const makeupRows = makeupTargets.map((c) => ({
+    course: c,
+    slot: c.program === 'ru' ? MakeupSchedule.parseMakeupSlot(c.code) : null,
+  }));
+
+  // Detect exam time conflicts across makeupTargets
+  const slotCounts = {};
+  makeupRows.forEach((r) => {
+    if (r.slot && r.slot.slotKey) {
+      slotCounts[r.slot.slotKey] = (slotCounts[r.slot.slotKey] || 0) + 1;
+    }
+  });
+  const conflictSlots = new Set(Object.keys(slotCounts).filter((k) => slotCounts[k] > 1));
+
+  // Search box results against ภาค ซ.1/2569 lookup table
+  const mq = ui.makeupSearch.trim().toUpperCase();
+  const lookupMatches = mq
+    ? Object.keys(MakeupSchedule.MAKEUP_RE169)
+        .filter((code) => code.includes(mq))
+        .slice(0, 12)
+        .map((code) => MakeupSchedule.parseMakeupSlot(code))
+    : [];
+
+  const typeOptions = Object.entries(EVENT_TYPES)
+    .map(([k, v]) => `<option value="${k}">${v.icon} ${v.label}</option>`)
+    .join('');
+
+  document.getElementById('view-calendar').innerHTML = `
+    <div class="stack">
+      <div class="card kawaii-hero">
+        <h2 class="card-title">🌸 ปฏิทินการศึกษา &amp; ตารางสอบซ่อม ซ.1/2569</h2>
+        <p class="card-sub">จดวันสอบ วันสอบซ่อม ส่งงาน กพช. พร้อมค้นหาและจับคู่วันสอบซ่อม ม.รามฯ ภาค ซ.1/2569 (21–26 ม.ค. 2570) อัตโนมัติ ✨</p>
+      </div>
+
+      <div class="grid-2 cal-layout">
+        <div class="card">
+          <div class="cal-head" style="flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" data-cal-nav="-1">‹</button>
+            <strong class="cal-title">${TH_MONTHS[m]} ${y + 543}</strong>
+            <button type="button" class="btn btn-secondary btn-sm" data-cal-nav="1">›</button>
+            <button type="button" class="btn btn-primary btn-sm" data-cal-nav="today">วันนี้</button>
+            <button type="button" class="btn btn-dei btn-sm" data-cal-nav="makeup2569">ซ.1/2569 (ม.ค. 70)</button>
+          </div>
+          <div class="cal-grid cal-dow">${TH_DOW.map((d) => `<span>${d}</span>`).join('')}</div>
+          <div class="cal-grid">${cells}</div>
+          <div class="cal-legend">
+            ${Object.values(EVENT_TYPES).map((t) => `<span><i style="background:${t.color}"></i>${t.label}</span>`).join('')}
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="card">
+            <h3 class="card-title">📌 ${formatThaiDate(sel)}</h3>
+            <div class="kpc-list" style="max-height:200px;margin:10px 0;">
+              ${selEvents.length === 0 ? '<div class="empty-state" style="padding:14px;">ยังไม่มีนัดหมายในวันนี้ 🍡</div>' : selEvents.map((e) => {
+                const t = EVENT_TYPES[e.type] || EVENT_TYPES.other;
+                return `
+                <div class="kpc-row">
+                  <div><span style="color:${t.color};font-weight:700;">${t.icon} ${t.label}</span> — <strong>${escapeHtml(e.title)}</strong>
+                    ${e.time ? `<span style="color:var(--text-muted);font-size:12px;"> ⏰ ${escapeHtml(e.time)}</span>` : ''}
+                    ${e.note ? `<div style="font-size:12px;color:var(--text-muted);">${escapeHtml(e.note)}</div>` : ''}
+                  </div>
+                  <button type="button" class="btn btn-danger-ghost" data-cal-del="${e.id}">✕</button>
+                </div>`;
+              }).join('')}
+            </div>
+            <form id="cal-form" class="stack" style="gap:8px;">
+              <input id="cal-title" class="input" placeholder="ชื่อนัดหมาย เช่น สอบซ่อม JPN1011 หรือ สอบกลางภาค" required />
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <input id="cal-date" type="date" class="input" value="${sel}" required />
+                <input id="cal-time" type="time" class="input" />
+              </div>
+              <select id="cal-type" class="select">${typeOptions}</select>
+              <input id="cal-note" class="input" placeholder="โน้ต (คาบ A/B • ห้องสอบ • สิ่งที่ต้องเตรียม)" />
+              <button type="submit" class="btn btn-primary">＋ เพิ่มลงปฏิทิน</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">⏳ นัดหมายที่กำลังจะถึง</h3>
+            <div class="kpc-list" style="max-height:240px;margin-top:10px;">
+              ${upcoming.length === 0 ? '<div class="empty-state" style="padding:14px;">ยังไม่มีนัดหมายที่จะถึง ✨</div>' : upcoming.map((e) => {
+                const t = EVENT_TYPES[e.type] || EVENT_TYPES.other;
+                const n = daysUntil(e.date);
+                return `
+                <div class="kpc-row">
+                  <div><span style="color:${t.color};font-weight:700;">${t.icon}</span> <strong>${escapeHtml(e.title)}</strong>
+                    <div style="font-size:12px;color:var(--text-muted);">${formatThaiDate(e.date)}${e.time ? ` • ${escapeHtml(e.time)}` : ''}</div>
+                  </div>
+                  <span class="credit-badge ${n <= 3 ? '' : 'dei'}" style="${n <= 3 ? 'background:#fee2e2;color:#dc2626;' : ''}">${n === 0 ? 'วันนี้!' : `อีก ${n} วัน`}</span>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AUTO MAKEUP EXAM TRACKER (RE 1/2569) -->
+      <div class="card">
+        <div class="card-header" style="margin-bottom:10px;">
+          <div>
+            <h3 class="card-title">🔁 ตารางสอบซ่อม ภาค ${escapeHtml(MakeupSchedule.MAKEUP_TERM_LABEL)} ของวิชาที่ยังไม่ผ่าน</h3>
+            <p class="card-sub">จับคู่รหัสวิชาจากไฟล์สอบซ่อม ภาค ซ.1/2569 ให้อัตโนมัติ (คาบ A = 09:30–12:00 น. • คาบ B = 14:00–16:30 น.)</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="pill ${ui.makeupScope === 'failed_or_active' ? 'active' : ''}" data-makeup-scope="failed_or_active">ไม่ผ่าน / กำลังเรียน (${failed.length + waiting.filter((c) => c.program === 'ru').length})</button>
+            <button type="button" class="pill ${ui.makeupScope === 'all_ru_unpassed' ? 'active' : ''}" data-makeup-scope="all_ru_unpassed">วิชา ม.รามฯ ที่ยังไม่ผ่านทั้งหมด (${ruUnpassedAll.length})</button>
+            ${makeupRows.some((r) => r.slot && r.slot.date) ? `<button type="button" id="btn-makeup-add-all" class="btn btn-primary btn-sm">✨ ลงปฏิทินทั้งหมด</button>` : ''}
+          </div>
+        </div>
+
+        ${makeupRows.length === 0 ? `
+          <div class="empty-state">ยังไม่มีวิชาที่ตั้งสถานะ "ไม่ผ่าน/รอซ่อม" หรือ "กำลังเรียน" ของ ม.รามฯ 🎉<br />
+          <span style="font-size:12px;">ลองกดปุ่ม <strong>"วิชา ม.รามฯ ที่ยังไม่ผ่านทั้งหมด"</strong> ด้านบน หรือค้นหารหัสวิชาด้านล่างได้เลยค่ะ</span></div>
+        ` : makeupRows.map(({ course: c, slot }, i) => {
+          const hasConflict = slot && slot.slotKey && conflictSlots.has(slot.slotKey);
+          const alreadyInCal = slot && slot.date && events.some((ev) => ev.type === 'makeup' && ev.date === slot.date && ev.title.includes(c.code));
+          return `
+            <div class="kpc-row" style="flex-wrap:wrap;gap:8px;margin-bottom:8px;${hasConflict ? 'border-color:#fca5a5;background:#fff5f5;' : ''}">
+              <div style="flex:1;min-width:220px;">
+                <span class="course-code ${c.program}">${escapeHtml(c.code)}</span>
+                <strong>${escapeHtml(c.name)}</strong>
+                <span class="credit-badge ${c.status === 'failed' ? '' : 'dei'}" style="margin-left:6px;font-size:11px;${c.status === 'failed' ? 'background:#fee2e2;color:#dc2626;border-color:#fca5a5;' : ''}">
+                  ${(COURSE_STATUSES.find((s) => s.value === c.status) || COURSE_STATUSES[0]).label}
+                </span>
+                <div style="font-size:12.5px;margin-top:3px;color:${slot ? (slot.isFaculty ? 'var(--amber)' : '#9333ea') : 'var(--text-muted)'};font-weight:600;">
+                  ${slot ? `📅 ${escapeHtml(slot.label)}` : (c.program === 'ru' ? 'ไม่พบในตาราง ซ.1/2569 (กำหนดวันเองได้)' : 'สทก. ม.ปลาย (ใส่วันสอบซ่อมเองได้)')}
+                </div>
+                ${hasConflict ? `<span class="dup-warn">⚠ เวลาสอบซ่อมชนกับวิชาอื่นในรายการ!</span>` : ''}
+              </div>
+              <input type="date" class="input" id="makeup-date-${i}" value="${slot?.date || ''}" style="max-width:165px;" />
+              <button type="button" class="btn ${alreadyInCal ? 'btn-secondary' : 'btn-primary'} btn-sm"
+                data-makeup-add="${i}"
+                data-makeup-code="${escapeHtml(c.code)}"
+                data-makeup-name="${escapeHtml(c.name)}"
+                data-makeup-time="${slot?.time || ''}"
+                data-makeup-note="${slot ? `ภาค ซ.1/2569 ${slot.session ? `คาบ ${slot.session}` : 'คณะจัดสอบเอง'}` : ''}">
+                ${alreadyInCal ? 'ลงแล้ว ✓' : '🌸 ลงปฏิทิน'}
+              </button>
+            </div>
+          `;
+        }).join('')}
+
+        <!-- QUICK MAKEUP SCHEDULE SEARCH (RE 1/2569) -->
+        <div style="margin-top:16px;padding-top:14px;border-top:2px dashed var(--border);">
+          <strong style="font-size:13.5px;">🔎 ค้นหาวันสอบซ่อม ภาค ซ.1/2569 (จากไฟล์ที่แนบมา)</strong>
+          <p style="margin:2px 0 8px;font-size:12px;color:var(--text-muted);">พิมพ์รหัสวิชา เช่น <code>JPN1011</code>, <code>RAM1111</code>, <code>PSY2002</code>, <code>ENG1001</code> เพื่อดูวันสอบซ่อมและกดลงปฏิทินได้ทันที</p>
+          <input id="makeup-search-input" type="search" class="input" value="${escapeHtml(ui.makeupSearch)}" placeholder="พิมพ์รหัสวิชา JPN / PSY / RAM ..." style="max-width:360px;" />
+          ${mq ? `
+            <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+              ${lookupMatches.length === 0 ? '<div style="font-size:12.5px;color:var(--text-muted);">ไม่พบรหัสวิชานี้ในฐานข้อมูล ซ.1/2569</div>' : lookupMatches.map((slot) => `
+                <div class="kpc-row" style="flex-wrap:wrap;">
+                  <div>
+                    <span class="course-code">${escapeHtml(slot.code)}</span>
+                    <span style="margin-left:8px;font-size:13px;font-weight:600;color:${slot.isFaculty ? 'var(--amber)' : '#9333ea'};">📅 ${escapeHtml(slot.label)}</span>
+                  </div>
+                  ${slot.date ? `
+                    <button type="button" class="btn btn-primary btn-sm" data-lookup-add="${escapeHtml(slot.code)}" data-lookup-date="${slot.date}" data-lookup-time="${slot.time}" data-lookup-session="${slot.session}">
+                      🌸 ลงปฏิทิน
+                    </button>
+                  ` : '<span style="font-size:12px;color:var(--amber);">ติดต่อคณะ</span>'}
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // ================= MASTER RENDER =================
 function renderActiveView() {
   updateTabChips();
-  document.querySelectorAll('.nav-tab').forEach((btn) => {
+  document.querySelectorAll('.nav-tab, .mobile-nav-item').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.tab === ui.activeTab);
   });
   document.querySelectorAll('.tab-view').forEach((sec) => {
@@ -1778,6 +2070,7 @@ function renderActiveView() {
   else if (ui.activeTab === 'dei') renderDeiView();
   else if (ui.activeTab === 'ru') renderRuView();
   else if (ui.activeTab === 'terms') renderTermsView();
+  else if (ui.activeTab === 'calendar') renderCalendarView();
 }
 
 // ================= MODALS =================
@@ -1864,6 +2157,15 @@ function showBackupAndSetupModal() {
             ${isCloud ? `เชื่อมต่อแล้ว (${escapeHtml(storage.user?.email || '')})` : 'ยังไม่ได้ตั้งค่า (Local Mode)'}
           </span>
         </h4>
+        ${lastSyncError ? `
+          <div class="login-error" style="margin-bottom:12px;">
+            <strong>รายละเอียดข้อผิดพลาดล่าสุด:</strong><br />
+            <code>${escapeHtml(lastSyncError)}</code>
+            <div style="margin-top:8px;">
+              <button type="button" id="btn-retry-sync" class="btn btn-secondary btn-sm">ลองเชื่อมต่อใหม่</button>
+            </div>
+          </div>
+        ` : ''}
         <p style="margin:0 0 10px;font-size:12.5px;color:var(--text-muted);">
           วิธีทำให้เว็บนี้บน <strong>GitHub Pages</strong> เก็บข้อมูลไม่หายและ <strong>ล็อกให้เข้าได้แค่คุณคนเดียว</strong>:
         </p>
@@ -1881,11 +2183,14 @@ function showBackupAndSetupModal() {
 
 // ================= EVENT DELEGATION =================
 function bindGlobalEvents() {
-  // Tab switching
-  document.querySelectorAll('.nav-tab').forEach((btn) => {
+  // Tab switching (desktop + mobile bottom nav)
+  document.querySelectorAll('.nav-tab, .mobile-nav-item').forEach((btn) => {
     btn.addEventListener('click', () => {
       ui.activeTab = btn.dataset.tab;
       renderActiveView();
+      if (window.innerWidth <= 768) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     });
   });
 
@@ -1947,6 +2252,10 @@ function bindGlobalEvents() {
   backdrop.addEventListener('click', (e) => {
     if (e.target === backdrop || e.target.closest('[data-close-modal]')) {
       closeModal();
+    }
+    if (e.target.id === 'btn-retry-sync') {
+      closeModal();
+      enterAuthenticatedApp();
     }
     if (e.target.id === 'btn-export-json') {
       const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
@@ -2117,6 +2426,165 @@ function bindGlobalEvents() {
       return;
     }
 
+    // Calendar controls
+    const calDay = e.target.closest('[data-cal-day]');
+    if (calDay) {
+      ui.calSelected = calDay.dataset.calDay;
+      renderCalendarView();
+      return;
+    }
+
+    const calNav = e.target.closest('[data-cal-nav]');
+    if (calNav) {
+      const v = calNav.dataset.calNav;
+      if (v === 'today') {
+        const now = new Date();
+        ui.calYear = now.getFullYear();
+        ui.calMonth = now.getMonth();
+        ui.calSelected = toDateStr(now);
+      } else if (v === 'makeup2569') {
+        ui.calYear = 2027;
+        ui.calMonth = 0;
+        ui.calSelected = '2027-01-21';
+      } else {
+        const dt = new Date(ui.calYear, ui.calMonth + Number(v), 1);
+        ui.calYear = dt.getFullYear();
+        ui.calMonth = dt.getMonth();
+      }
+      renderCalendarView();
+      return;
+    }
+
+    const makeupScope = e.target.closest('[data-makeup-scope]');
+    if (makeupScope) {
+      ui.makeupScope = makeupScope.dataset.makeupScope;
+      renderCalendarView();
+      return;
+    }
+
+    if (e.target.id === 'btn-makeup-add-all') {
+      const allCourses = [...getAllDeiCourses(), ...getAllRuCourses()];
+      const failed = allCourses.filter((c) => c.status === 'failed');
+      const waitingRu = allCourses.filter((c) => c.status === 'in_progress' && c.program === 'ru');
+      const ruUnpassedAll = getAllRuCourses().filter(
+        (c) => c.status !== 'passed' && c.code && !c.code.includes('XXXX') && c.code !== 'ยังไม่เลือก' && c.code !== 'เลือกเสรี'
+      );
+      const targets = ui.makeupScope === 'all_ru_unpassed' ? ruUnpassedAll : [...failed, ...waitingRu];
+      let added = 0;
+      let firstDate = '';
+      targets.forEach((c) => {
+        if (c.program !== 'ru') return;
+        const slot = MakeupSchedule.parseMakeupSlot(c.code);
+        if (!slot || !slot.date) return;
+        const exists = (state.events || []).some(
+          (ev) => ev.type === 'makeup' && ev.date === slot.date && ev.title.includes(c.code)
+        );
+        if (exists) return;
+        state.events.push({
+          id: uid('ev'),
+          title: `สอบซ่อม ${c.code} ${c.name}`,
+          date: slot.date,
+          time: slot.time || '',
+          type: 'makeup',
+          note: `ภาค ซ.1/2569 ${slot.session ? `คาบ ${slot.session}` : 'คณะจัดสอบเอง'}`,
+        });
+        if (!firstDate) firstDate = slot.date;
+        added += 1;
+      });
+      if (added > 0) {
+        const [yy, mm] = (firstDate || '2027-01-21').split('-').map(Number);
+        ui.calYear = yy;
+        ui.calMonth = mm - 1;
+        ui.calSelected = firstDate || '2027-01-21';
+        scheduleSave();
+        renderCalendarView();
+        showToast(`เพิ่มวันสอบซ่อมลงปฏิทินแล้ว ${added} วิชา ✨`);
+      } else {
+        showToast('วิชาที่มีตารางสอบซ่อมทั้งหมดลงในปฏิทินเรียบร้อยแล้ว 🌸');
+      }
+      return;
+    }
+
+    const calDel = e.target.closest('[data-cal-del]');
+    if (calDel) {
+      state.events = state.events.filter((x) => x.id !== calDel.dataset.calDel);
+      scheduleSave();
+      renderCalendarView();
+      return;
+    }
+
+    const makeupBtn = e.target.closest('[data-makeup-add]');
+    if (makeupBtn) {
+      const input = document.getElementById(`makeup-date-${makeupBtn.dataset.makeupAdd}`);
+      if (!input || !input.value) {
+        showToast('เลือกวันสอบซ่อมก่อนนะ 🌸');
+        return;
+      }
+      const code = makeupBtn.dataset.makeupCode || '';
+      const name = makeupBtn.dataset.makeupName || '';
+      const time = makeupBtn.dataset.makeupTime || '';
+      const note = makeupBtn.dataset.makeupNote || '';
+      const exists = (state.events || []).some(
+        (ev) => ev.type === 'makeup' && ev.date === input.value && code && ev.title.includes(code)
+      );
+      const [yy, mm] = input.value.split('-').map(Number);
+      ui.calYear = yy;
+      ui.calMonth = mm - 1;
+      ui.calSelected = input.value;
+      if (exists) {
+        renderCalendarView();
+        showToast('วิชานี้ลงในปฏิทินวันนั้นแล้วนะ 🌸');
+        return;
+      }
+      state.events.push({
+        id: uid('ev'),
+        title: `สอบซ่อม ${code} ${name}`.trim(),
+        date: input.value,
+        time,
+        type: 'makeup',
+        note,
+      });
+      scheduleSave();
+      renderCalendarView();
+      showToast(`ลงวันสอบซ่อม ${code} ในปฏิทินแล้ว 🔁`);
+      return;
+    }
+
+    const lookupBtn = e.target.closest('[data-lookup-add]');
+    if (lookupBtn) {
+      const code = lookupBtn.dataset.lookupAdd;
+      const date = lookupBtn.dataset.lookupDate;
+      const time = lookupBtn.dataset.lookupTime || '';
+      const session = lookupBtn.dataset.lookupSession || '';
+      if (!code || !date) return;
+      const matched = getAllRuCourses().find((c) => (c.code || '').toUpperCase() === code.toUpperCase());
+      const title = matched ? `สอบซ่อม ${code} ${matched.name}` : `สอบซ่อม ${code}`;
+      const exists = (state.events || []).some(
+        (ev) => ev.type === 'makeup' && ev.date === date && ev.title.includes(code)
+      );
+      const [yy, mm] = date.split('-').map(Number);
+      ui.calYear = yy;
+      ui.calMonth = mm - 1;
+      ui.calSelected = date;
+      if (exists) {
+        renderCalendarView();
+        showToast(`วิชา ${code} ลงในปฏิทินวันนั้นแล้วนะ 🌸`);
+        return;
+      }
+      state.events.push({
+        id: uid('ev'),
+        title,
+        date,
+        time,
+        type: 'makeup',
+        note: `ภาค ซ.1/2569 ${session ? `คาบ ${session}` : ''}`.trim(),
+      });
+      scheduleSave();
+      renderCalendarView();
+      showToast(`ลงวันสอบซ่อม ${code} ในปฏิทินแล้ว 🔁`);
+      return;
+    }
+
     // Terms view controls
     const termFilter = e.target.closest('[data-term-filter]');
     if (termFilter) {
@@ -2206,6 +2674,18 @@ function bindGlobalEvents() {
       return;
     }
 
+    if (el.id === 'makeup-search-input') {
+      ui.makeupSearch = el.value;
+      const pos = el.selectionStart;
+      renderCalendarView();
+      const next = document.getElementById('makeup-search-input');
+      if (next) {
+        next.focus();
+        next.setSelectionRange(pos, pos);
+      }
+      return;
+    }
+
     if (el.dataset.deiCompId && el.dataset.field === 'note') {
       state.dei.compulsory[el.dataset.deiCompId].note = el.value;
       scheduleSave();
@@ -2230,6 +2710,28 @@ function bindGlobalEvents() {
 
   // KPC form submit
   main.addEventListener('submit', (e) => {
+    if (e.target.id === 'cal-form') {
+      e.preventDefault();
+      const title = document.getElementById('cal-title').value.trim();
+      const date = document.getElementById('cal-date').value;
+      if (!title || !date) return;
+      state.events.push({
+        id: uid('ev'),
+        title,
+        date,
+        time: document.getElementById('cal-time').value,
+        type: document.getElementById('cal-type').value,
+        note: document.getElementById('cal-note').value.trim(),
+      });
+      ui.calSelected = date;
+      const [yy, mm] = date.split('-').map(Number);
+      ui.calYear = yy;
+      ui.calMonth = mm - 1;
+      scheduleSave();
+      renderCalendarView();
+      showToast('เพิ่มนัดหมายแล้ว 🌸');
+      return;
+    }
     if (e.target.id === 'kpc-form') {
       e.preventDefault();
       const title = document.getElementById('kpc-title').value.trim();
@@ -2255,10 +2757,19 @@ async function enterAuthenticatedApp() {
 
   try {
     const loaded = await storage.loadState();
+    lastSyncError = '';
     if (loaded.state) {
       state = normalizeState(loaded.state);
+      if (state._migratedToV2) {
+        delete state._migratedToV2;
+        scheduleSave();
+        showToast('อัปเดตหลักสูตร สทก. (สกร. 2567) และบันทึกเกรดจริงให้แล้ว ✓');
+      }
     } else {
       state = createDefaultState();
+      if (isCloud && !loaded.localDraft) {
+        scheduleSave();
+      }
     }
 
     if (loaded.source === 'cloud_empty' && loaded.localDraft) {
@@ -2274,14 +2785,109 @@ async function enterAuthenticatedApp() {
     }
   } catch (err) {
     console.error(err);
-    setSyncBadge('error', 'โหลดข้อมูลไม่สำเร็จ');
-    showToast(err.message);
+    lastSyncError = err.message || String(err);
+    setSyncBadge('error', 'โหลดข้อมูลไม่สำเร็จ — คลิกดูรายละเอียด');
+    showToast(lastSyncError);
   }
 
   renderActiveView();
 }
 
+// ================= SWEET FLUFFY EFFECTS =================
+function initSweetEffects() {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  // 1. Ambient falling fluffy puffs & dessert sprinkles
+  const layer = document.createElement('div');
+  layer.className = 'sweet-particles';
+  layer.setAttribute('aria-hidden', 'true');
+
+  const symbols = ['🧸', '🐻', '🐾', '♡', '♥', '🎀', '✦', '✧', '☁️', '🐾', '♡'];
+  const colors = ['#ff85b3', '#b37352', '#e86a96', '#995d3c', '#f5a8c6', '#d89658'];
+  const puffColors = ['#ffd6e6', '#ffe9f0', '#f5dfd0', '#fff1e6'];
+  const isMobile = window.innerWidth <= 768;
+  const totalFlakes = isMobile ? 12 : 20;
+  const totalPuffs = isMobile ? 7 : 12;
+
+  for (let i = 0; i < totalFlakes; i += 1) {
+    const el = document.createElement('span');
+    el.className = 'sweet-flake';
+    el.textContent = symbols[i % symbols.length];
+    el.style.setProperty('--x', `${(Math.random() * 96 + 2).toFixed(1)}%`);
+    el.style.setProperty('--size', `${(11 + Math.random() * 9).toFixed(0)}px`);
+    el.style.setProperty('--dur', `${(11 + Math.random() * 11).toFixed(1)}s`);
+    el.style.setProperty('--sway', `${(3 + Math.random() * 3.5).toFixed(1)}s`);
+    el.style.setProperty('--delay', `${(-Math.random() * 18).toFixed(1)}s`);
+    el.style.setProperty('--op', (0.45 + Math.random() * 0.38).toFixed(2));
+    el.style.color = colors[i % colors.length];
+    layer.appendChild(el);
+  }
+
+  for (let i = 0; i < totalPuffs; i += 1) {
+    const puff = document.createElement('span');
+    puff.className = 'sweet-puff';
+    puff.style.setProperty('--x', `${(Math.random() * 96 + 2).toFixed(1)}%`);
+    puff.style.setProperty('--size', `${(16 + Math.random() * 22).toFixed(0)}px`);
+    puff.style.setProperty('--dur', `${(14 + Math.random() * 12).toFixed(1)}s`);
+    puff.style.setProperty('--sway', `${(4 + Math.random() * 4).toFixed(1)}s`);
+    puff.style.setProperty('--delay', `${(-Math.random() * 20).toFixed(1)}s`);
+    puff.style.setProperty('--op', (0.45 + Math.random() * 0.35).toFixed(2));
+    puff.style.setProperty('--puff-color', puffColors[i % puffColors.length]);
+    layer.appendChild(puff);
+  }
+
+  document.body.appendChild(layer);
+
+  // 2. Fluffy heart/sparkle mouse trail & click burst
+  const trailChars = ['♥', '♡', '✦', '✧', '˚'];
+  const trailColors = ['#ff6b9d', '#ff9ec4', '#c88263', '#f5b076', '#e05d8e'];
+  let lastTrail = 0;
+  let activeSparkles = 0;
+
+  function spawnSparkle(x, y, dx, dy, char, size) {
+    if (activeSparkles > 36) return;
+    activeSparkles += 1;
+    const sp = document.createElement('span');
+    sp.className = 'sweet-sparkle';
+    sp.textContent = char || trailChars[Math.floor(Math.random() * trailChars.length)];
+    sp.style.left = `${x}px`;
+    sp.style.top = `${y}px`;
+    sp.style.color = trailColors[Math.floor(Math.random() * trailColors.length)];
+    if (size) sp.style.fontSize = `${size}px`;
+    sp.style.setProperty('--dx', `${dx}px`);
+    sp.style.setProperty('--dy', `${dy}px`);
+    document.body.appendChild(sp);
+    setTimeout(() => {
+      sp.remove();
+      activeSparkles -= 1;
+    }, 860);
+  }
+
+  if (window.matchMedia && window.matchMedia('(pointer: fine)').matches) {
+    document.addEventListener('mousemove', (e) => {
+      const now = Date.now();
+      if (now - lastTrail < 85) return;
+      lastTrail = now;
+      const dx = Math.round((Math.random() - 0.5) * 26);
+      const dy = Math.round(-16 - Math.random() * 20);
+      spawnSparkle(e.clientX, e.clientY, dx, dy, null, 11 + Math.floor(Math.random() * 5));
+    }, { passive: true });
+  }
+
+  document.addEventListener('click', (e) => {
+    const burst = ['🧸', '🐾', '♥', '♡', '🎀', '✦'];
+    for (let i = 0; i < burst.length; i += 1) {
+      const angle = (Math.PI * 2 * i) / burst.length + Math.random() * 0.4;
+      const dist = 24 + Math.random() * 24;
+      const dx = Math.round(Math.cos(angle) * dist);
+      const dy = Math.round(Math.sin(angle) * dist - 14);
+      spawnSparkle(e.clientX, e.clientY, dx, dy, burst[i], 12 + Math.floor(Math.random() * 5));
+    }
+  }, { passive: true });
+}
+
 async function init() {
+  initSweetEffects();
   bindGlobalEvents();
   const auth = await storage.initAuth();
 
